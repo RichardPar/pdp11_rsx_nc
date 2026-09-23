@@ -14,6 +14,10 @@ volume.
 
 ## The screen
 
+![NC on a VT100 terminal](nc-screen.png)
+
+The layout, in outline:
+
     +--------- DB0:[NC] ----+-------+---------++------- DB0:[0,0] ...
     |        Name           | Size  |  Date   ||        Name
     |..                     |   <UP>|         ||[0,0]
