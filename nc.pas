@@ -1351,8 +1351,16 @@ begin
     old := cur;
     oldtop := top;
     cur := c;
-    if cur < top then top := cur;
-    if cur >= top + listh then top := cur - listh + 1;
+    { stepping off the bottom or top of the window turns a whole page:
+      the cursor lands on the first or last line of the new page }
+    if cur < top then
+      begin
+      if cur = old - 1 then top := cur - listh + 1 else top := cur
+      end;
+    if cur >= top + listh then
+      begin
+      if cur = old + 1 then top := cur else top := cur - listh + 1
+      end;
     if top < 1 then top := 1;
     if top <> oldtop then drawrows(p)
     else if old <> cur then
