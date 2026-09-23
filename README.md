@@ -16,19 +16,6 @@ volume.
 
 ![NC on a VT100 terminal](nc-screen.png)
 
-The layout, in outline:
-
-    +--------- DB0:[NC] ----+-------+---------++------- DB0:[0,0] ...
-    |        Name           | Size  |  Date   ||        Name
-    |..                     |   <UP>|         ||[0,0]
-    |NC        PAS;9        |    120|23-SEP-26||[1,1]
-    |NC        TSK;1        |    116|23-SEP-26||[1,2]
-    |   ...                                    ||   ...
-    +-----------------------+-------+---------++---
-    |NC.PAS;9                            13:56||[1,1]  directory
-    +-----------------------------------------++---
-    DB0:[NC]>
-    1Help  2Go To 3View  4Edit  5Copy  6RenMov 7Mkdir 8Delete 9Sort 10Quit
 
 The active panel is the one with the highlighted title and the cursor
 bar. Sizes are in blocks, as reported by PIP /LI. Files of 32,768
