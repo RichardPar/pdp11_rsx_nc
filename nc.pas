@@ -1544,6 +1544,22 @@ end;
 function confirm(title, text: str): boolean;
 var
   w, c1, r1, k: integer;
+  yes, done: boolean;
+
+  procedure buttons;
+  begin
+    gotoxy(r1 + 4, c1 + (w - 16) div 2);
+    if yes then setattr(afield) else setattr(adlg);
+    puts('[ Yes ]');
+    setattr(adlg);
+    puts('  ');
+    if yes then setattr(adlg) else setattr(afield);
+    puts('[ No ]');
+    setattr(adlg);
+    if yes then gotoxy(r1 + 4, c1 + (w - 16) div 2 + 2)
+    else gotoxy(r1 + 4, c1 + (w - 16) div 2 + 11)
+  end;
+
 begin
   w := text.len + 6;
   if w < 30 then w := 30;
@@ -1554,13 +1570,27 @@ begin
   box(r1, c1, r1 + 5, c1 + w - 1, title);
   gotoxy(r1 + 2, c1 + (w - text.len) div 2);
   putstr(text);
-  gotoxy(r1 + 4, c1 + (w - 16) div 2);
-  puts('[ Yes ]  [ No ]');
+  yes := true;
+  done := false;
   repeat
-    k := getkey
-  until (k = ord('y')) or (k = ord('Y')) or (k = 13) or (k = ord('n')) or
-        (k = ord('N')) or (k = kesc) or (k = kf10) or (k = 3);
-  confirm := (k = ord('y')) or (k = ord('Y')) or (k = 13);
+    buttons;
+    k := getkey;
+    if (k = kleft) or (k = kright) or (k = 9) or (k = kup) or
+       (k = kdown) then yes := not yes
+    else if (k = ord('y')) or (k = ord('Y')) then
+      begin
+      yes := true;
+      done := true
+      end
+    else if (k = ord('n')) or (k = ord('N')) or (k = kesc) or
+            (k = kf10) or (k = 3) then
+      begin
+      yes := false;
+      done := true
+      end
+    else if (k = 13) or (k = ord(' ')) then done := true
+  until done;
+  confirm := yes;
   redraw
 end;
 

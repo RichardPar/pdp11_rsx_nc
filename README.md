@@ -193,6 +193,46 @@ of each record. The screen may be 80 to 132 columns wide and 16 to 66
 lines long.
 
 
+## Updating NC
+
+To replace an older NC with a new release, copy the new NC.PAS and
+NCIO.MAC into DB0:[NC] as described in BUILD.md. They are given the
+next version numbers, so the old sources are kept. Then rebuild:
+
+    >SET /DEF=DB0:[NC]
+    >@NCMAKE
+
+RUN DB0:[NC]NC always takes the highest version of NC.TSK, so nothing
+more is needed if NC is only run that way.
+
+If NC is installed, the installed copy is still the old task image
+and must be replaced. First check that nobody is running NC; ACT /ALL
+lists the active tasks. Then, from a privileged account:
+
+    >TAS ...NC
+    >REM ...NC
+    >INS DB0:[NC]NC/TASK=...NC
+
+TAS shows whether NC is installed. If it is not, TAS reports "Task
+not in system" and the REM can be left out.
+
+An INS lasts only until the system is next booted. To have NC
+installed at every boot, put the same INS line in the system startup
+procedure. On a standard system the place for it is
+LB:[1,2]USERPROG.CMD, which STARTUP.CMD runs near its end:
+
+    INS DB0:[NC]NC/TASK=...NC
+
+Give no version number in this line. The newest NC.TSK is then
+installed at boot, and the line does not have to be changed after
+each update. If the startup procedure already installs NC, leave it
+as it is.
+
+When the new version has been checked, the old files can be removed:
+
+    >PIP DB0:[NC]*.*/PU
+
+
 ## Implementation notes
 
 NC.PAS contains the user interface and all the file handling logic.
