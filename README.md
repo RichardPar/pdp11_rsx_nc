@@ -63,7 +63,7 @@ empty.
 Function keys:
 
     F1    Help
-    F2    Go to another device or directory
+    F2    Choose a device, or go to a directory
     F3    View file
     F4    Edit file with EDT
     F5    Copy
@@ -85,6 +85,32 @@ Other keys:
     CTRL/U              Exchange the two panels
     ESC ESC, CTRL/C     Clear the command line
     DELETE, BACKSPACE   Delete the last character
+
+
+## Devices and directories
+
+F2 lists the mounted Files-11 volumes, with the active panel's device
+highlighted:
+
+    DU0:    SY: LB:  Left Right
+    DU1:
+    DY0:
+    Type a path...
+
+SY: and LB: are marked, as are the devices shown in the left and right
+panels. Move with the cursor keys and press RETURN to show the MFD of
+the chosen device in the active panel. ESC or F2 closes the list
+without changing anything.
+
+To go to a particular directory, choose "Type a path..." or simply
+start typing. A path may be given as DDn:[dir], DDn: or [dir]. A
+directory without a device is looked up on the active panel's device.
+Unit numbers are octal. Pseudo devices such as SY: and LB: are
+accepted and resolved to the physical device. If the device or
+directory cannot be read, the panel is left where it was.
+
+Each panel has its own device, so files can be copied or moved
+between volumes by showing one in each panel.
 
 
 ## Commands
@@ -158,7 +184,10 @@ current state.
 
 ## Restrictions
 
-Only the first 250 entries of a directory are shown. Command lines are
+Only the first 250 entries of a directory are shown. The F2 list
+holds at most 24 devices, and only units 0 to 7 are looked for; a
+volume on a higher unit is listed only while a panel shows it, but can
+always be reached by typing its name. Command lines are
 limited to 76 characters. The viewer displays the first 512 characters
 of each record. The screen may be 80 to 132 columns wide and 16 to 66
 lines long.
@@ -202,6 +231,16 @@ RAD50 collates as space, A-Z, $, ., %, 0-9, which does not give the
 order a user expects. NC holds each name word re-coded with the order
 space, $, ., %, 0-9, A-Z. An unsigned comparison of these words then
 sorts in ASCII order, and they are decoded directly for display.
+
+There is no directive that lists mounted volumes to a nonprivileged
+task, so the F2 list is found by trial. For each of the disk device
+names DB, DD, DF, DK, DL, DM, DP, DR, DS, DT, DU, DW, DX, DY, DZ and VD,
+units 0 to 7 are assigned to LUN 15 with ALUN$. A unit that does not
+exist fails with IE.IDU. For one that does, GLUN$ gives the physical
+device, so a redirected device is listed once under its target. The
+unit is listed if the MFD header (file ID 4,4) can be read with
+IO.RAT; the QIO fails at once on a volume that is not mounted, or is
+mounted foreign. The scan is repeated each time F2 is pressed.
 
 The viewer opens files by file ID with FCS OFID$R and reads them with
 GET$. It uses a VT100 scrolling region, so moving forward one line

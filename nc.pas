@@ -23,8 +23,8 @@ program nc(output);
     ^F                           copy file name to the command line
     ^R reread   ^L redraw   ^U swap panels   ESC ESC clear command
     Broadcast messages are refused while NC runs (SET /NOBRO).
-    F1 help   F2 go to   F3 view   F4 edit   F5 copy   F6 ren/move
-    F7 mkdir  F8 delete  F9 sort/options  F10 quit
+    F1 help   F2 devices / go to   F3 view   F4 edit   F5 copy
+    F6 ren/move   F7 mkdir  F8 delete  F9 sort/options  F10 quit
     ESC 1 .. ESC 0 work as F1 .. F10 on terminals without them.
 }
 
@@ -48,6 +48,8 @@ const
   ieeof = -10;          { IE.EOF }
   iensf = -26;          { IE.NSF }
   mfdnum = 4;           { file ID of the master file directory }
+  maxdev = 24;          { devices in the F2 menu }
+  maxunit = 7;          { highest unit number tried for each device }
 
   { screen attributes }
   anorm = 0; acur = 1; asel = 2; acursel = 3; adir = 4; aframe = 5;
@@ -131,6 +133,10 @@ var
   months: packed array [1..36] of char;
   oldnbr: integer;              { broadcast setting to restore }
   keychars: packed array [1..40] of char;
+  devnames: packed array [1..32] of char;       { disk devices tried }
+  ndev: integer;                { mounted devices found by scandevs }
+  ddev, dunit: array [1..maxdev] of integer;
+  sydev, syunit, lbdev, lbunit: integer;        { SY: and LB: }
 
 { ---- NCIO.MAC ---- }
 
@@ -504,17 +510,20 @@ end;
 
 { ---- names, dates and sizes ---- }
 
+procedure devname(dv, un: integer; var s: str);
+{ append "DB0:" }
+begin
+  saddc(s, chr(dv mod 256));
+  saddc(s, chr(dv div 256));
+  saddnum(s, un, 8);
+  saddc(s, ':')
+end;
+
 procedure devstr(p: integer; var s: str);
 { "DB0:" }
 begin
   sclr(s);
-  with pan[p] do
-    begin
-    saddc(s, chr(dev mod 256));
-    saddc(s, chr(dev div 256));
-    saddnum(s, unit, 8);
-    saddc(s, ':')
-    end
+  devname(pan[p].dev, pan[p].unit, s)
 end;
 
 procedure pathstr(p: integer; var s: str);
@@ -1016,6 +1025,67 @@ begin
     until found or (st <> 1)
     end;
   finddir := found
+end;
+
+function mfdok: boolean;
+{ true if the device the FS LUN is assigned to holds a mounted
+  Files-11 volume, i.e. the MFD's header can be read }
+begin
+  fnb[0] := mfdnum;
+  fnb[1] := mfdnum;
+  fnb[2] := 0;
+  mfdok := fsqio(iorat, fnb, -10, 0, hdr, 0, 0, 0, 0) = 1
+end;
+
+procedure adddev(dv, un: integer);
+{ add a device to the list, unless it is there already }
+var
+  k: integer;
+  dup: boolean;
+begin
+  dup := false;
+  for k := 1 to ndev do
+    if (ddev[k] = dv) and (dunit[k] = un) then dup := true;
+  if not dup and (ndev < maxdev) then
+    begin
+    ndev := ndev + 1;
+    ddev[ndev] := dv;
+    dunit[ndev] := un
+    end
+end;
+
+procedure scandevs;
+{ list the mounted Files-11 volumes: try units 0 to maxunit of each
+  disk device name and keep those whose MFD can be read }
+var
+  i, u, dv, un: integer;
+begin
+  ndev := 0;
+  curdev := -1;
+  sydev := -1;
+  lbdev := -1;
+  if fsalun(ord('S') + 256 * ord('Y'), 0) >= 0 then fsglun(sydev, syunit);
+  if fsalun(ord('L') + 256 * ord('B'), 0) >= 0 then fsglun(lbdev, lbunit);
+  i := 1;
+  while i < 32 do
+    begin
+    for u := 0 to maxunit do
+      begin
+      dv := ord(devnames[i]) + 256 * ord(devnames[i + 1]);
+      un := u;
+      if fsalun(dv, un) >= 0 then
+        begin
+        { a redirected device resolves to its target }
+        fsglun(dv, un);
+        if mfdok then adddev(dv, un)
+        end
+      end;
+    i := i + 2
+    end;
+  { the panels' devices, in case their unit numbers are higher }
+  adddev(pan[0].dev, pan[0].unit);
+  adddev(pan[1].dev, pan[1].unit);
+  curdev := -1
 end;
 
 { ---- screen layout ---- }
@@ -2314,7 +2384,7 @@ begin
   l(7, 'Ins ^T    select file        + - *  select all/none/invert');
   l(8, '^F        put file name on the command line');
   l(9, '^R        reread directory   ^L  redraw   ESC ESC  clear line');
-  l(11, 'F1 Help     F2 Go to dir    F3 View    F4 Edit (EDT)');
+  l(11, 'F1 Help     F2 Device/dir   F3 View    F4 Edit (EDT)');
   l(12, 'F5 Copy     F6 Rename/Move  F7 Mkdir   F8 Delete');
   l(13, 'F9 Sort / colour options    F10 Quit');
   l(15, 'On a VT100 use PF1-PF4 for F1-F4, or ESC followed by a');
@@ -2495,14 +2565,109 @@ begin
         end
 end;
 
+procedure devline(i, r, c, w: integer; hi: boolean);
+{ entry i of the device menu, at row r, column c, w columns wide }
+var
+  t: str;
+  p: integer;
+begin
+  sclr(t);
+  saddc(t, ' ');
+  if i > ndev then sadd(t, 'Type a path...')
+  else
+    begin
+    devname(ddev[i], dunit[i], t);
+    while t.len < 8 do saddc(t, ' ');
+    if (ddev[i] = sydev) and (dunit[i] = syunit) then sadd(t, 'SY: ');
+    if (ddev[i] = lbdev) and (dunit[i] = lbunit) then sadd(t, 'LB: ');
+    while t.len < 17 do saddc(t, ' ');
+    for p := 0 to 1 do
+      if (ddev[i] = pan[p].dev) and (dunit[i] = pan[p].unit) then
+        if p = 0 then sadd(t, 'Left ') else sadd(t, 'Right')
+    end;
+  gotoxy(r, c);
+  if hi then setattr(afield) else setattr(adlg);
+  putfield(t, w)
+end;
+
+function devmenu(var first: str): integer;
+{ F2 menu of the mounted devices.  Returns the device chosen, 0 to
+  type a path (first holds the text to start with), or -1 }
+var
+  ni, vis, top, cur, w, c1, r1, k, i, res: integer;
+  t: str;
+begin
+  scandevs;
+  ni := ndev + 1;
+  vis := ni;
+  if vis > scrh - 6 then vis := scrh - 6;
+  w := 34;
+  c1 := (scrw - w) div 2 + 1;
+  r1 := (scrh - vis - 2) div 2;
+  sset(t, 'Go To');
+  box(r1, c1, r1 + vis + 1, c1 + w - 1, t);
+  cur := ni;
+  for i := ndev downto 1 do
+    if (ddev[i] = pan[act].dev) and (dunit[i] = pan[act].unit) then
+      cur := i;
+  top := 1;
+  if cur > vis then top := cur - vis + 1;
+  sclr(first);
+  res := -2;
+  repeat
+    for i := top to top + vis - 1 do
+      devline(i, r1 + 1 + i - top, c1 + 1, w - 2, i = cur);
+    gotoxy(r1 + 1 + cur - top, c1 + 1);
+    k := getkey;
+    if k = kup then cur := cur - 1
+    else if k = kdown then cur := cur + 1
+    else if (k = kpgup) or (k = kleft) then cur := cur - vis + 1
+    else if (k = kpgdn) or (k = kright) then cur := cur + vis - 1
+    else if k = khome then cur := 1
+    else if k = kend then cur := ni
+    else if k = 13 then
+      begin
+      if cur > ndev then
+        begin
+        pathstr(act, first);
+        res := 0
+        end
+      else res := cur
+      end
+    else if (k = kesc) or (k = kf2) or (k = kf10) or (k = 3) then res := -1
+    else if (k > 32) and (k < 127) then
+      begin
+      { typing starts a path }
+      saddc(first, chr(k));
+      res := 0
+      end;
+    if cur > ni then cur := ni;
+    if cur < 1 then cur := 1;
+    if cur < top then top := cur;
+    if cur >= top + vis then top := cur - vis + 1
+  until res > -2;
+  devmenu := res;
+  redraw
+end;
+
 procedure gotodir;
 var
   t, u, v: str;
+  i: integer;
 begin
-  pathstr(act, t);
-  sset(u, 'Go to directory (DDn:[dir]):');
-  sset(v, 'Go To');
-  if inputbox(v, u, t) then goto_path(act, t)
+  i := devmenu(t);
+  if i > 0 then
+    begin
+    sclr(t);
+    devname(ddev[i], dunit[i], t);
+    goto_path(act, t)
+    end
+  else if i = 0 then
+    begin
+    sset(u, 'Go to directory (DDn:[dir]):');
+    sset(v, 'Go To');
+    if inputbox(v, u, t) then goto_path(act, t)
+    end
 end;
 
 procedure askquit;
@@ -2611,6 +2776,7 @@ end;
 begin
   months := 'JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC';
   keychars := ' $.%0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  devnames := 'DBDDDFDKDLDMDPDRDSDTDUDWDXDYDZVD';
   olen := 0;
   color := false;
   quit := false;

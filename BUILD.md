@@ -125,8 +125,10 @@ right panel the master file directory, [0,0], with sizes and dates
 filled in. Tab to the right panel, move to a directory and press
 RETURN. Press RETURN on ".." to go back; the cursor should return to
 the directory just left. Press F3 on NC.PAS and page through the
-file. Type TIM on the command line and press RETURN; the time should
-be displayed. Press F10 and answer Y to leave NC.
+file. Press F2; the mounted volumes should be listed, with the system
+device marked SY:. Press ESC to close the list. Type TIM on the
+command line and press RETURN; the time should be displayed. Press
+F10 and answer Y to leave NC.
 
 
 ## Problems
