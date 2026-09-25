@@ -10,10 +10,10 @@
 ; Terminal:     ttinit, ttgetc, ttput, ttsize, ttnbr
 ; Files-11:     fsalun, fsglun, fsqio
 ; File reading: vopen, vget, vclose
-; Misc:         r50asc, spawn
+; Misc:         r50asc, spawn, gtime
 ;
         .mcall  filio$,ttsym$
-        .mcall  qiow$s,alun$s,glun$s,spwn$s,wtse$s
+        .mcall  qiow$s,alun$s,glun$s,spwn$s,wtse$s,gtim$s
         .mcall  fdbdf$,fdop$a,fsrsz$,ofid$r,get$,close$
         filio$
         ttsym$
@@ -49,6 +49,8 @@ atl:    .byte   0,0                     ; attribute list, one entry
 atladr: .word   0
         .word   0
 mcrnam: .rad50  /MCR.../
+tsknam: .rad50  /.../                   ; ...xxx, xxx set by spawn
+tsknm2: .word   0
         .even
 vwfdb:  fdbdf$
         fdop$a  vwlun
@@ -294,27 +296,108 @@ vwfdb:  fdbdf$
         endpr
 
 ;
+; procedure gtime(var buf: timbuf);
+; Get the date and time (GTIM$): year-1900, month, day, hour, minute,
+; second, tick, ticks per second.
+;
+        proc    gtime
+        param   buf,address
+        save    <r0>
+        begin
+        mov     buf(sp),r0
+        gtim$s  r0
+        endpr
+
+;
 ; function spawn(var cmd: anything; len: integer): integer;
-; Pass a command line to MCR... and wait for it to finish.  The
-; terminal is detached while the command runs.  Returns the exit
-; status (1 = success), or the negative directive status if the
-; spawn failed.
+; Run a command line and wait for it to finish.  The line goes straight
+; to the installed task ...xxx named by the first three characters of
+; its verb (...AT. for @file), as MCR would send it, which saves loading
+; MCR's dispatcher.  If there is no such task (IE.INS) the line is given
+; to MCR... for its own commands.  The terminal is detached while the
+; command runs.  Returns the exit status (1 = success), or the negative
+; directive status if the spawn failed.
 ;
         func    spawn,res,integer
         param   cmd,address
         param   len,integer
-        save    <r0>
+        save    <r0,r1,r2,r3,r4>
         begin
-        mov     cmd(sp),tmp1
-        mov     len(sp),tmp2
+        mov     cmd(sp),r1
+        mov     len(sp),r2
+        mov     r1,tmp1
+        mov     r2,tmp2
+        clr     r3                      ; RAD50 verb (0 = none)
+1$:     dec     r2                      ; skip leading blanks
+        bmi     5$
+        movb    (r1)+,r0
+        cmpb    r0,#40
+        beq     1$
+        cmpb    r0,#'@
+        bne     2$
+        mov     #^rAT.,r3
+        br      5$
+2$:     mov     #3,r4                   ; three RAD50 characters
+3$:     mov     r3,-(sp)                ; r3 := r3 * 40.
+        asl     r3
+        asl     r3
+        add     (sp)+,r3
+        asl     r3
+        asl     r3
+        asl     r3
+        call    r50ch
+        tst     r0
+        beq     4$                      ; end of verb: pad with blanks
+        add     r0,r3
+        clr     r0
+        dec     r2
+        bmi     4$
+        movb    (r1)+,r0
+4$:     dec     r4
+        bne     3$
+5$:     mov     r3,tsknm2
         qiow$s  #io.det,#ttlun,#ttefn,,#iosb
-        spwn$s  #mcrnam,,,,,#spefn,,#esb,tmp1,tmp2
-        mov     $dsw,r0
-        bmi     1$
+        tst     r3
+        beq     6$
+        spwn$s  #tsknam,,,,,#spefn,,#esb,tmp1,tmp2
+        cmp     $dsw,#ie.ins
+        bne     7$
+6$:     spwn$s  #mcrnam,,,,,#spefn,,#esb,tmp1,tmp2
+7$:     mov     $dsw,r0
+        bmi     8$
         wtse$s  #spefn
         mov     esb,r0
-1$:     mov     r0,res(sp)
+8$:     mov     r0,res(sp)
         qiow$s  #io.att,#ttlun,#ttefn,,#iosb
         endpr
+
+;
+; r50ch -- RAD50 code of the character in r0 (A-Z, a-z, 0-9, $),
+; returned in r0; 0 for anything else.
+;
+r50ch:  bic     #177600,r0
+        cmpb    r0,#'a
+        blo     1$
+        cmpb    r0,#'z
+        bhi     9$
+        sub     #40,r0                  ; lower case to upper
+1$:     cmpb    r0,#'A
+        blo     2$
+        cmpb    r0,#'Z
+        bhi     9$
+        sub     #<'A-1>,r0
+        rts     pc
+2$:     cmpb    r0,#'0
+        blo     3$
+        cmpb    r0,#'9
+        bhi     9$
+        sub     #<'0-30.>,r0
+        rts     pc
+3$:     cmpb    r0,#'$
+        bne     9$
+        mov     #27.,r0
+        rts     pc
+9$:     clr     r0
+        rts     pc
 
         .end

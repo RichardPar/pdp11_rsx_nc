@@ -61,6 +61,7 @@ const
 
 type
   fileid = array [1..3] of integer;
+  timbuf = array [1..8] of integer;
   fnblock = array [0..31] of integer;
   block = record
             case integer of
@@ -153,6 +154,7 @@ function vopen(var f: fileid): integer; external;
 function vget(var b: recbuf; size: integer; var len: integer): integer;
   external;
 procedure vclose; external;
+procedure gtime(var b: timbuf); external;
 procedure r50asc(w: integer; var s: str3); external;
 function spawn(var c: line; len: integer): integer; external;
 
@@ -1377,11 +1379,30 @@ begin
   setattr(acmd)
 end;
 
+procedure drawclock;
+{ HH:MM at the top right, as Norton Commander shows it }
+var
+  tb: timbuf;
+  t: str;
+begin
+  gtime(tb);
+  sclr(t);
+  saddc(t, ' ');
+  sadd2(t, tb[4]);
+  saddc(t, ':');
+  sadd2(t, tb[5]);
+  saddc(t, ' ');
+  gotoxy(1, scrw - 7);
+  setattr(atitle);
+  putstr(t)
+end;
+
 procedure drawcmd;
 var
   t: str;
   room, i: integer;
 begin
+  drawclock;
   pathstr(act, t);
   saddc(t, '>');
   gotoxy(scrh - 1, 1);
